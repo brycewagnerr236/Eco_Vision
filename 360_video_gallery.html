@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>A-Frame 360 Video Gallery</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-entity-slider-component@1.0.0/dist/aframe-entity-slider-component.min.js"></script>
+    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
+  </head>
+  <script>
+    AFRAME.registerComponent("video-displayer", {
+      schema: {
+        baseDirectory: { type: "string", default: "360video" }, // change this to the video folder
+        baseName: { type: "string", default: "video" },
+        count: { type: "number", default: 18 },
+        extension: { type: "string", default: ".mp4" },
+      },
+      init: async function () {
+        this.loadedCount = 0;
+        const data = this.data;
+        const scene = this.el; // Use current entity as parent
+        this.active = false;
+        const videoEls = [];
+        for (let i = 1; i <= data.count; i++) {
+          const videoId = `${data.baseName}${i}`;
+          const videoAssetId = `${data.baseName}Asset${i}`;
+          const videoDirectory = `${data.baseDirectory}/${videoId}${data.extension}`;
+
+          const videoAssetEl = document.createElement("video");
+          videoAssetEl.style.display = "none";
+          videoAssetEl.hidden = true;
+          videoAssetEl.id = videoAssetId;
+          videoAssetEl.preload = "metadata";
+          videoAssetEl.autoplay = false;
+          videoAssetEl.loop = true;
+          videoAssetEl.src = videoDirectory;
+          videoEls.push(videoAssetEl);
+        }
+        videoEls.forEach(el => document.querySelector("a-assets").appendChild(el))
+        for (let i = 1; i <= data.count; i++) {
+          const videoAssetId = `${data.baseName}Asset${i}`;
+
+          document
+            .getElementById(videoAssetId)
+            .addEventListener("loadeddata", () => {
+              document.querySelector(".loader-fill").style.width =
+                100 * (this.loadedCount / data.count) + "%";
+                this.loadedCount++;
+            });
+        }
+      },
+      activate: function() {
+        const data = this.data;
+        const scene = this.el; // Use current entity as parent
+
+        for (let i = 1; i <= data.count; i++) {
+          const videoId = `${data.baseName}${i}`;
+          const videoAssetId = `${data.baseName}Asset${i}`;
+
+          const videoEl = document.createElement("a-sphere");
+          videoEl.classList.add("clickable");
+          videoEl.setAttribute("grow", "");
+          videoEl.setAttribute("id", videoId);
+          videoEl.setAttribute("autoplay", "true");
+          videoEl.setAttribute("loop", "true");
+          videoEl.setAttribute("muted", "true");
+          videoEl.setAttribute("radius", "0.5");
+          videoEl.setAttribute("material", "side: back; shader: flat");
+          videoEl.setAttribute("src", `#${videoAssetId}`);
+          videoEl.addEventListener("click", () => {
+            document.querySelectorAll("video").forEach((v) => v.pause());
+            document
+              .querySelector("a-sky")
+              .setAttribute("src", `#${videoAssetId}`);
+            document.getElementById(videoAssetId).play();
+          });
+          this.el.appendChild(videoEl);
+        }
+      },
+      tick: function () {
+        if (this.loadedCount === this.data.count) {
+          if (this.active) return;
+          this.activate();
+          this.el.setAttribute(
+            "entity-slider",
+            "backwardTrigger: #left; forwardTrigger: #right; toShow: 3"
+          );
+          document.querySelector("a-scene").style.opacity = 1;
+          document
+            .querySelector(".loader")
+            .parentElement.removeChild(document.querySelector(".loader"));
+          this.active = true;
+        }
+      },
+    });
+
+    AFRAME.registerComponent("grow", {
+      init: function () {
+        this.el.addEventListener("mouseenter", () => {
+          this.el.setAttribute("scale", "1.2 1.2 1.2");
+        });
+        this.el.addEventListener("mouseleave", () => {
+          this.el.setAttribute("scale", "1 1 1");
+        });
+      },
+    });
+
+    AFRAME.registerComponent("hide-target", {
+      init: function () {
+        this.el.addEventListener("click", () => {
+          const oldAttr = document
+            .querySelector("#controls")
+            .getAttribute("visible");
+          if (oldAttr) {
+            document.querySelector("#controls").setAttribute("scale", "0 0 0");
+            document
+              .querySelector("#controls")
+              .setAttribute("position", "1000 1000 1000");
+          } else {
+            document.querySelector("#controls").setAttribute("scale", "1 1 1");
+            document
+              .querySelector("#controls")
+              .setAttribute("position", "-2 0 -3");
+          }
+          document.querySelector("#controls").setAttribute("visible", !oldAttr);
+        });
+      },
+    });
+    AFRAME.registerComponent("activate-on-enter-vr", {
+      init: function () {
+        this.el.sceneEl.addEventListener("enter-vr", function () {
+          this.el.setAttribute("raycaster", "far", "10");
+        });
+        this.el.sceneEl.addEventListener("exit-vr", function () {
+          this.el.setAttribute("raycaster", "far", "0");
+        });
+      },
+    });
+  </script>
+  <style>
+    .loader {
+      width: 300px; /* Adjust width as needed */
+      height: 20px;
+      background-color: #eee;
+      border-radius: 5px;
+      overflow: hidden;
+      z-index: 1000;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .loader-fill {
+      height: 100%;
+      background-color: #007bff; /* Adjust fill color */
+      transition: width 0.5s ease; /* Optional: Add a smooth transition */
+    }
+  </style>
+  <body>
+    <div class="loader">
+      <div class="loader-fill" id="progress-bar" style="width: 0%"></div>
+    </div>
+    <a-scene>
+      <a-entity id="rig">
+        <a-entity camera look-controls position="0 1.6 0">
+          <a-entity
+            animation__click="property: scale; startEvents: click; easing: easeInCubic; dur: 150; from: 0.1 0.1 0.1; to: 1 1 1"
+            animation__fusing="property: scale; startEvents: fusing; easing: easeInCubic; dur: 1500; from: 1 1 1; to: 0.1 0.1 0.1"
+            animation__mouseleave="property: scale; startEvents: mouseleave; easing: easeInCubic; dur: 500; to: 1 1 1"
+            cursor="fuse: true;"
+            material="color: lightgreen; shader: flat"
+            position="0 0 -1"
+            geometry="primitive: ring; radiusInner: 0.005; radiusOuter: 0.01"
+            raycaster="objects: .clickable"
+          >
+          </a-entity>
+        </a-entity>
+        <a-entity oculus-touch-controls="hand: left;"></a-entity>
+        <a-entity
+          oculus-touch-controls="hand: right; "
+          laser-controls
+          raycaster="lineColor: lightgreen; far: 10; objects: .clickable"
+          activate-on-enter-vr
+        ></a-entity>
+      </a-entity>
+
+      <a-assets> </a-assets>
+      <a-sky id="video"></a-sky>
+      <a-entity position="-2 0 -3" id="controls">
+        <a-entity id="slider" video-displayer>
+          <!--slides-->
+        </a-entity>
+        <a-entity position="2 -1 2" scale="0.5 0.5 0.5" rotation="0 0 0">
+          <!--triggers-->
+          <a-cylinder
+            grow
+            class="clickable"
+            position="-1 0 0"
+            color="cyan"
+            segments-radial="3"
+            rotation="0 30 0"
+            id="left"
+          ></a-cylinder>
+          <a-cylinder
+            grow
+            class="clickable"
+            position="1 0 0"
+            color="cyan"
+            segments-radial="3"
+            rotation="0 -30 0"
+            id="right"
+          ></a-cylinder>
+        </a-entity>
+      </a-entity>
+      <a-cylinder
+        position="0 -3 0"
+        class="clickable"
+        hide-target
+        grow
+        radius="0.1"
+        color="crimson"
+      >
+      </a-cylinder>
+    </a-scene>
+  </body>
+</html>
